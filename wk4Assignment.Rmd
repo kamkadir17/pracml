@@ -1,0 +1,120 @@
+---
+title: "wk4Assignment.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#LOAD THE given data DATA. REINITIALIZE DIV/0 AS NA.
+```{r , echo=TRUE, message=F, warning=F}
+#load data
+library(caret)
+dataPml <- read.csv("pml-training.csv", na.strings=c("#DIV/0!"), row.names = 1)
+testPml <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!"), row.names = 1)
+```
+
+#Explore the data
+```{r , echo=TRUE, message=F, warning=F}
+str(dataPml)
+```
+
+As you can see the first 5 columns mean nothing with respect to the machine learning features. Lets exclude them
+```{r , echo=TRUE, message=F, warning=F}
+dataPml <- dataPml[, 6:dim(dataPml)[2]]
+```
+
+
+#Feature selection
+The given problem is a classifier problem as at the end, we need to identify which classe a given datarow belongs. Hence for classifer machine learning we need to identify list of features.
+
+We have 153 columns but not all columns are useful. lets find out which ones are not useful and eliminate from the feature selection process.
+
+Lets remove unnecessary features by looking at the following types of data
+1. Almost all the data in that column is NA. meaning it will not be useful to meaning predict / help predict an outcome.Lets have a threshold of 95% of rows if N/A, we will eliminate that column.
+
+##Eliminate NA Columns
+```{r , echo=TRUE, message=F, warning=F}
+th_rows <- dim(dataPml)[1] * 0.95
+naCols <- apply(dataPml, 2, function(x) sum(is.na(x)) > th_rows || sum(x=="") > th_rows)
+
+dataPml <- dataPml[, !naCols]
+```
+
+
+2. The column has same unique data for all rows. Again not an useful feature to predict.
+3. The column has few unique values but the proporation  frequence of occurence of highest to next highest is too high. Again this in our context we can eliminate as we dont have any binary value columns. 
+
+##Eliminate near zero & zero predicators
+
+```{r , echo=TRUE, message=F, warning=F}
+nzvCols <- nearZeroVar(dataPml, saveMetrics = TRUE)
+dataPml <- dataPml[, nzvCols$nzv==FALSE]
+```
+
+#Make outcome as a factor variable
+dataPml$classe = factor(dataPml$classe)
+
+#Model building 
+
+##Data Slicing
+Lets split the data into 70/30 for training and testing the model.
+
+```{r , echo=TRUE, message=F, warning=F}
+trainIndex <- createDataPartition(dataPml$classe, p = 0.7, 
+list = FALSE, 
+ times = 1)
+training <- dataPml[trainIndex,]
+testing <- dataPml[-trainIndex,]
+dim(training)
+dim(testing)
+```
+
+##Apply Classifier Models
+
+1. Classifier Model- Recursive Partitioning And Regression Trees
+```{r , echo=TRUE, message=F, warning=F}
+###Train the model
+modFit_RPART <- train(classe ~ ., data=training, method="rpart")
+print(modFit_RPART$finalModel)
+
+###Test the model
+predictClasse <- predict(modFit_RPART, newdata = testing)
+
+###Evaluate the efficiency of the model
+confusionMatrix(predictClasse, testing$classe)
+```
+
+2. Classifier Model- Random Forest
+###Train the model
+```{r , echo=TRUE, message=F, warning=F}
+
+modFit_RF <- train(classe ~ ., data=training, method="rf")
+print(modFit_RF$finalModel)
+
+###Test the model
+predictClasse <- predict(modFit_RF, newdata = testing)
+
+###Evaluate the efficiency of the model
+confusionMatrix(predictClasse, testing$classe)
+```
+
+3. Classifier Model- Linear Discriminant Analysis
+```{r , echo=TRUE, message=F, warning=F}
+###Train the model
+modFit_LDA <- train(classe ~ ., data=training, method="lda")
+print(modFit_LDA$finalModel)
+
+###Test the model
+predictClasse <- predict(modFit_LDA, newdata = testing)
+
+###Evaluate the efficiency of the model
+confusionMatrix(predictClasse, testing$classe)
+```
+
+#Conclusion
+
+Of all the methods, Random Forest seems the best model with 99% accuracy. We will use that model alone and there is no need for ensemle of additional models.
+
+
